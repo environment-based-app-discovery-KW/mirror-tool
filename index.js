@@ -4,4 +4,6 @@ const syncBatch = require("./methods/syncBatch");
 
 const meta = readMeta();
 const config = readConfig();
-syncBatch();
+syncBatch().then(_ => {
+  console.log("@syncBatch", _);
+});

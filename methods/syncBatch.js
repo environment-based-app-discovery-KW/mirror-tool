@@ -29,6 +29,7 @@ module.exports = function syncBatch(batch_number = 0) {
       let tables = Object.keys(body).filter(_ => !_.startsWith('$'));
       let syncFinished = tables.every(_ => body[_].length < itemsPerBatch);
       let sql = [];
+      let promises = [];
       tables.forEach(tableName => {
         body[tableName].forEach(record => {
 
@@ -37,10 +38,16 @@ module.exports = function syncBatch(batch_number = 0) {
             let filePath = path.join(config.file_bucket_path, record.code_bundle_hash);
             if (!fs.existsSync(filePath)) {
               let file = fs.createWriteStream(filePath);
-              http.get(urljoin(config.canonical_server, 'file/download?hash=' + record.code_bundle_hash), function (response) {
-                response.pipe(file);
-                //TODO: promise cannot resolve unless all downloads are done.
-              });
+              promises.push(new Promise(resolve => {
+                http.get(urljoin(config.canonical_server, 'file/download?hash=' + record.code_bundle_hash), function (response) {
+                  response.pipe(file);
+                  file.on('finish', function () {
+                    file.close(() => {
+                      resolve();
+                    });
+                  });
+                });
+              }));
             }
           }
 
@@ -51,7 +58,10 @@ module.exports = function syncBatch(batch_number = 0) {
           //TODO: 一个INSERT，多个values tuple，效率更高
         });
       });
+
       console.log(sql.join('\n'));
+
+      resolve(Promise.all(promises).then(() => ({ syncFinished })));
       //TODO: sync response to db, save file to path
     });
   }));
