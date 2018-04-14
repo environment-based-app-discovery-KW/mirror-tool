@@ -1,3 +1,5 @@
+const fs = require("fs");
+const readMeta = require("./methods/readMeta");
 const syncBatch = require("./methods/syncBatch");
 
 (async () => {
@@ -9,5 +11,7 @@ const syncBatch = require("./methods/syncBatch");
     }
     batchNumber++;
   }
+  let meta = { ...readMeta(), last_sync_ts: +new Date() };
+  fs.writeFileSync('meta.json', JSON.stringify(meta, null, 4), { encoding: "utf8" });
   console.log("\nall done.");
 })();
