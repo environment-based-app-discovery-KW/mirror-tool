@@ -16,6 +16,7 @@ const mysqlConnection = mysql.createConnection({
 });
 
 module.exports = function syncBatch(batch_number = 0) {
+  console.log("> performing batch update " + batch_number);
   let meta = readMeta();
   return new Promise(((resolve, reject) => {
     let endpoint = urljoin(config.canonical_server, 'sync');
@@ -45,12 +46,14 @@ module.exports = function syncBatch(batch_number = 0) {
           if (record.code_bundle_hash) {
             let filePath = path.join(config.file_bucket_path, record.code_bundle_hash);
             if (!fs.existsSync(filePath)) {
+              console.log("  > fetching file " + record.code_bundle_hash);
               let file = fs.createWriteStream(filePath);
               promises.push(new Promise(resolve => {
                 http.get(urljoin(config.canonical_server, 'file/download?hash=' + record.code_bundle_hash), function (response) {
                   response.pipe(file);
                   file.on('finish', function () {
                     file.close(() => {
+                      console.log("  < done fetching file " + record.code_bundle_hash);
                       resolve();
                     });
                   });
@@ -67,14 +70,15 @@ module.exports = function syncBatch(batch_number = 0) {
         });
       });
 
-      promises.push(new Promise(resolve => {
-        mysqlConnection.query(sql.join(''), (err, results) => {
-          console.log(err, results);
-          resolve(results);
-        });
-      }));
-
-      console.log(sql.join('\n'));
+      if (sql.length) {
+        promises.push(new Promise(resolve => {
+          console.log(`  > executing sql (${sql.length} queries)`);
+          mysqlConnection.query(sql.join(''), (err, results) => {
+            console.log("  < done executing sql");
+            resolve(results);
+          });
+        }));
+      }
 
       resolve(Promise.all(promises).then(() => ({ syncFinished })));
     });
