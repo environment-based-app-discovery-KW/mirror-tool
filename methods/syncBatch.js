@@ -3,11 +3,19 @@ const request = require('request');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
+const mysql = require('mysql');
 const readConfig = require("./readConfig");
 const readMeta = require("./readMeta");
+const config = readConfig();
+const mysqlConnection = mysql.createConnection({
+  host: config.mysql_host,
+  database: config.mysql_database,
+  user: config.mysql_username,
+  password: config.mysql_password,
+  multipleStatements: true,
+});
 
 module.exports = function syncBatch(batch_number = 0) {
-  let config = readConfig();
   let meta = readMeta();
   return new Promise(((resolve, reject) => {
     let endpoint = urljoin(config.canonical_server, 'sync');
@@ -54,15 +62,21 @@ module.exports = function syncBatch(batch_number = 0) {
           sql.push(`INSERT INTO ${tableName}` +
             ` (${Object.keys(record).join(',')}) values` +
             ` (${Object.keys(record).map(_ => `"${typeof record[_] === 'string' ? record[_].replace(/([\\"])/g, "\\$1") : record[_]}"`).join(',')})` +
-            ` ON DUPLICATE KEY UPDATE`)
+            ` ON DUPLICATE KEY UPDATE ${Object.keys(record).filter(_ => _ !== 'id').map(_ => `\`${_}\`=VALUES(\`${_}\`)`).join(',')};`)
           //TODO: 一个INSERT，多个values tuple，效率更高
         });
       });
 
+      promises.push(new Promise(resolve => {
+        mysqlConnection.query(sql.join(''), (err, results) => {
+          console.log(err, results);
+          resolve(results);
+        });
+      }));
+
       console.log(sql.join('\n'));
 
       resolve(Promise.all(promises).then(() => ({ syncFinished })));
-      //TODO: sync response to db, save file to path
     });
   }));
 };
