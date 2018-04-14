@@ -1,3 +1,8 @@
 {
-  "canonical_server": "http://main-app-repo-server.appd/"
+  "canonical_server": "http://main-app-repo-server.appd/",
+  "file_bucket_path": "",
+  "mysql_host": "",
+  "mysql_database": "",
+  "mysql_username": "",
+  "mysql_password": ""
 }
